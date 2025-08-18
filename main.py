@@ -89,7 +89,24 @@ results = collection.query(
     n_results=N_RESULTS,
     include=["documents","metadatas"]
 )
-
 data = [f"content: {c}\nfile:{m['filename']}" for c, m in zip(results["documents"][0], results["metadatas"][0])]
-for item in data:
-    print(item)
+
+response = ollama.chat(
+    model=MODEL,
+    messages=[
+        {
+            "role": "system",
+            "content": "You are a helpful assistant. Use the provided context to answer questions accurately."
+        },
+        {
+            "role": "user",
+            "content": f"Context:\n{'\n'.join(data)}\n\nQuestion: {prompt}"
+        }
+    ],
+    options={
+        "temperature": 1,
+        "num_ctx": 4096
+    }
+)
+
+print(response.message.content)

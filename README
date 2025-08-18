@@ -28,13 +28,11 @@ stream = chat(
 for chunk in stream:
   print(chunk['message']['content'], end='', flush=True)
 '''
-
 #basic chat
 '''
 from ollama import chat
-from ollama import ChatResponse
 
-response: ChatResponse = chat(model=MODEL, messages=[
+response = chat(model=MODEL, messages=[
   {
     'role': 'user',
     'content': 'Why is the sky blue?',
@@ -53,3 +51,19 @@ output = ollama.generate(
 
 print(output['response'])
 '''
+
+arguments:
+  generate:
+    model: Specifies the model to use (e.g., smollm2:135m).
+    prompt: The input text for which the model generates a response.
+    suffix: Optional text to append after the response.
+    images: List of base64-encoded images for multimodal models.
+  
+  chat:
+    model: Specifies the model to use.
+    messages: An array of message objects, each containing role (user or assistant) and content.
+    stream: Optional; when true, streams the response as it's generated.
+    format: Optional; specifies the format of the response.
+    keep_alive: Optional; determines if the conversation context is maintained across multiple requests.
+    tools: Optional; specifies any tools the model can use.
+    options: Optional; a dictionary of additional settings like temperature, top_p, etc.

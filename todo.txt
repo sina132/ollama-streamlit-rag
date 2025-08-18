@@ -1,0 +1,4 @@
+use rag query to chat with ollama X
+add chat context and history
+optimize RAG
+add tools
