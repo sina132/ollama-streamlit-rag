@@ -1,0 +1,55 @@
+>pip install ollama chromadb nltk numpy
+install ollama
+pull a model
+
+-----------------------------
+
+modify ollama model:
+making a Modelfile such as (refrence: https://ollama.readthedocs.io/en/modelfile/):
+
+FROM deepseek-r1:1.5b
+PARAMETER num_ctx 8096
+SYSTEM You are a assistant
+
+>ollama create custom-model-name -f ./Modelfile
+
+-----------------------------
+
+#chat in chunks
+'''
+from ollama import chat
+
+stream = chat(
+    model=MODEL,
+    messages=[{'role': 'user', 'content': 'is mario a war hero?'}], //can have 'assistant' role for the ai
+    stream=True,
+)
+
+for chunk in stream:
+  print(chunk['message']['content'], end='', flush=True)
+'''
+
+#basic chat
+'''
+from ollama import chat
+from ollama import ChatResponse
+
+response: ChatResponse = chat(model=MODEL, messages=[
+  {
+    'role': 'user',
+    'content': 'Why is the sky blue?',
+  },
+])
+
+print(response.message.content)
+'''
+#single time response:
+'''
+import ollama
+output = ollama.generate(
+  model=MODEL,
+  prompt=f"Using this data: {data}. Respond to this prompt: {input}"
+)
+
+print(output['response'])
+'''
