@@ -81,32 +81,51 @@ def process_files():
 
 
 process_files()
-prompt = input(":")
-embedded_prompt = embed(prompt)
+running = True
+messages =[
+    {
+        "role": "system",
+        "content": "You are a helpful assistant. Use the provided context to answer questions accurately."
+    },
+]
+while running:
 
-results = collection.query(
-    query_embeddings=embedded_prompt,
-    n_results=N_RESULTS,
-    include=["documents","metadatas"]
-)
-data = [f"content: {c}\nfile:{m['filename']}" for c, m in zip(results["documents"][0], results["metadatas"][0])]
+    prompt = input(":")
+    if prompt.strip() == "bye":
+        running = False
+        break
+    embedded_prompt = embed(prompt)
 
-response = ollama.chat(
-    model=MODEL,
-    messages=[
-        {
-            "role": "system",
-            "content": "You are a helpful assistant. Use the provided context to answer questions accurately."
-        },
+    results = collection.query(
+        query_embeddings=embedded_prompt,
+        n_results=N_RESULTS,
+        include=["documents","metadatas"]
+    )
+    data = [f"content: {c}\nfile:{m['filename']}" for c, m in zip(results["documents"][0], results["metadatas"][0])]
+
+    messages.append(
         {
             "role": "user",
             "content": f"Context:\n{'\n'.join(data)}\n\nQuestion: {prompt}"
         }
-    ],
-    options={
-        "temperature": 1,
-        "num_ctx": 4096
-    }
-)
+    )
 
-print(response.message.content)
+    response = ollama.chat(
+        model=MODEL,
+        messages=messages,
+        options={
+            "temperature": 1, #0:most #1:most
+            "num_ctx": 4096
+        },
+        stream=True
+    )
+    
+    for chunk in response:
+        print(chunk['message']['content'], end='', flush=True)
+
+    messages.append(
+        {
+            "role":"assistant",
+            "content":response.message.content
+        }
+    )
