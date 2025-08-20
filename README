@@ -1,4 +1,11 @@
+installing and running:
 >pip install ollama chromadb nltk numpy unstructured streamlit "unstructured[pdf]"
 install ollama
 pull a model
 streamlit run main.py
+
+about:
+you can chat with your ollama models with a simple streamlit chat interface
+you can modify /files or add new files from the chat interface
+the files will be embedded and saved in chromaDB and then will be queried based on user prompt to provide relevent context to your messages based on the files provided
+note:change your model name accordingly (MODEL = "llama3.1:8b")
