@@ -1,11 +1,10 @@
 import ollama
-#import nltk
 import chromadb
 import hashlib
 import os
 import json
-import numpy
-
+import streamlit as st
+from unstructured.partition.auto import partition
 
 MODEL = "llama3.1:8b"
 FILE_DIR = "./files"
@@ -14,6 +13,9 @@ HASH_DIR = "./files.json"
 CHUNK_SIZE = 100
 CHUNK_OVERLAP = 20
 N_RESULTS = 3
+INSTRUCTIONS = "You are a helpful assistant. Use the provided context to answer questions accurately."
+TEMPRETURE = 1 #0 = deterministic, 1 = creative
+TOKENS = 4096
 
 client = chromadb.PersistentClient(path=DB_DIR)
 collection = client.get_or_create_collection(name="docs")
@@ -35,13 +37,16 @@ def set_hashed_files(data):
     with open(HASH_DIR,"w") as f:
         json.dump(data,f)
 
-# Sentence-aware chunking to preserve semantic context
 def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     chunks = []
     words = text.split(' ')
     for i in range(0,len(words),chunk_size):
         chunks.append(' '.join(words[i:i+chunk_size-overlap]))
     return chunks
+
+def extract_text(filepath):
+    elements = partition(filename=filepath)
+    return "\n".join(str(el) for el in elements)
 
 def process_files():
     old_files = get_hashed_files()
@@ -59,8 +64,7 @@ def process_files():
         if file in old_files and new_hash == old_files[file]:
             continue
 
-        with open(filepath,"r",encoding="utf8") as f:
-            content = f.read()
+        content = extract_text(filepath)
 
         chunks = chunk_text(content)
         for i,chunk in enumerate(chunks):
@@ -79,53 +83,85 @@ def process_files():
     set_hashed_files(old_files)
 
 
-
 process_files()
-running = True
-messages =[
-    {
-        "role": "system",
-        "content": "You are a helpful assistant. Use the provided context to answer questions accurately."
-    },
-]
-while running:
 
-    prompt = input(":")
-    if prompt.strip() == "bye":
-        running = False
-        break
+#states:
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {
+            "role": "system",
+            "content": INSTRUCTIONS
+        },
+    ]
+if "running" not in st.session_state:
+    st.session_state.running = False
+
+#page config:
+st.set_page_config(layout="wide", page_title="Ollama Chat")
+
+def get_context(prompt):
     embedded_prompt = embed(prompt)
-
     results = collection.query(
         query_embeddings=embedded_prompt,
         n_results=N_RESULTS,
         include=["documents","metadatas"]
     )
     data = [f"content: {c}\nfile:{m['filename']}" for c, m in zip(results["documents"][0], results["metadatas"][0])]
-
-    messages.append(
-        {
-            "role": "user",
-            "content": f"Context:\n{'\n'.join(data)}\n\nQuestion: {prompt}"
-        }
-    )
-
-    response = ollama.chat(
+    content = f"Context:\n{'\n'.join(data)}\n\nQuestion: {prompt}"
+    return content
+def ask_ollama():
+    stream = ollama.chat(
         model=MODEL,
-        messages=messages,
-        options={
-            "temperature": 1, #0:most #1:most
-            "num_ctx": 4096
-        },
+        messages=st.session_state.messages,
         stream=True
     )
-    
-    for chunk in response:
-        print(chunk['message']['content'], end='', flush=True)
+    for chunk in stream:
+        yield chunk['message']['content']
 
-    messages.append(
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        st.chat_message("user").write(message["content"])
+    if message["role"] == "assistant":
+        st.chat_message("assistant").write(message["content"])
+
+
+prompt = st.chat_input("ask AI...",accept_file=True,disabled=st.session_state.running)
+if prompt:
+    st.session_state.running = True
+    if hasattr(prompt, 'files') and prompt.files:
+        for file in prompt.files:
+            try:
+                # Get file information
+                file_name = file.name
+                file_data = file.read()
+                
+                # Save file to directory
+                file_path = os.path.join(FILE_DIR, file_name)
+                
+                # Write file to disk
+                with open(file_path, "wb") as f:
+                    f.write(file_data)
+                
+                st.success(f"File '{file_name}' saved successfully!")
+                
+                # Display file info (optional)
+                st.write(f"File type: {file.type}")
+                st.write(f"File size: {len(file_data)} bytes")
+                
+            except Exception as e:
+                st.error(f"Error saving file: {e}")
+        process_files()
+        
+    context = get_context(prompt.text)
+    st.chat_message("user").write(context)
+    st.session_state.messages.append(
         {
-            "role":"assistant",
-            "content":response.message.content
+            "role": "user",
+            "content": context
         }
     )
+
+    res = st.chat_message("assistant").write_stream(ask_ollama())
+    st.session_state.messages.append({"role": "assistant", "content": res})
+
+    st.session_state.running = False
